@@ -5,7 +5,7 @@
 > 面向"想变规律但总是坚持不下来"的普通人做的：**不追求功能多，追求每天都愿意打开**。
 
 <p align="center">
-  <img src="shots/01-today.png" alt="今日节奏" width="820">
+  <img src="shots/00-login.png" alt="入口页">
 </p>
 
 ---
@@ -49,12 +49,12 @@
 
 <table>
 <tr>
+<td><img src="shots/01-today.png" alt="今日节奏"></td>
 <td><img src="shots/02-mood.png" alt="情绪板块"></td>
-<td><img src="shots/03-track.png" alt="个性记录"></td>
 </tr>
 <tr>
+<td><img src="shots/03-track.png" alt="个性记录"></td>
 <td><img src="shots/04-tool.png" alt="自助工具"></td>
-<td align="center">—</td>
 </tr>
 </table>
 
