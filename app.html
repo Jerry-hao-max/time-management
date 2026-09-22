@@ -388,14 +388,69 @@
   .add-mini:hover{border-color:var(--bronze);color:var(--bronze-d);background:rgba(255,255,255,.6);}
 
   /* ================= tools ================= */
-  .pomo{text-align:center;padding:8px 0 4px;}
+  .pomo{text-align:center;padding:4px 0 0;}
+  .pomo-phase{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:5px 14px;margin-bottom:14px;
+    border:1px solid var(--hair);border-radius:20px;
+    background:rgba(255,255,255,.6);
+    font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-soft);
+  }
+  .pomo-phase i{width:6px;height:6px;border-radius:50%;background:var(--bronze);display:block;flex:none;}
+  .pomo-phase.brk i{background:var(--sage);}
+  .pomo-phase.long i{background:var(--muted-blue);}
+  .pomo-phase i.blink{animation:pomoPulse 1.7s ease-in-out infinite;}
+  @keyframes pomoPulse{0%,100%{opacity:1;}50%{opacity:.2;}}
   .pomo-time{
-    font-family:var(--serif);font-size:78px;line-height:1;font-variant-numeric:tabular-nums;
+    font-family:var(--serif);font-size:76px;line-height:1;font-variant-numeric:tabular-nums;
     color:var(--ink);letter-spacing:.02em;
   }
   .pomo-time.run{color:var(--bronze-d);}
-  .pomo-lab{margin:10px 0 22px;font-size:10.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--ink-faint);}
-  .pomo-acts{display:flex;justify-content:center;gap:11px;}
+  .pomo-time.rest{color:var(--sage);}
+  .pomo-lab{margin:11px 0 0;font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-faint);}
+  .pomo-track{
+    height:3px;max-width:340px;margin:18px auto 20px;
+    background:rgba(168,131,78,.14);border-radius:2px;overflow:hidden;
+  }
+  .pomo-track i{display:block;height:100%;background:linear-gradient(90deg,var(--champagne),var(--bronze));transition:width 1s linear;}
+  .pomo-target{
+    display:flex;align-items:center;gap:14px;
+    max-width:340px;margin:0 auto 20px;padding:11px 15px;
+    border:1px dashed var(--hair);border-radius:2px;
+    background:rgba(255,255,255,.45);text-align:left;
+  }
+  .pomo-target .lb{display:block;margin-bottom:3px;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint);}
+  .pomo-target .vl{font-family:var(--serif);font-size:15px;line-height:1.35;color:var(--ink-mid);}
+  .pomo-acts{display:flex;justify-content:center;gap:11px;flex-wrap:wrap;}
+  .cfg-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 22px;}
+  .cfg-item{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:10px 0;border-bottom:1px solid var(--hair-soft);
+  }
+  .cfg-item > span{font-size:12.5px;color:var(--ink-soft);}
+  .cfg-item .wrapnum{display:flex;align-items:center;gap:6px;}
+  .cfg-item .unit{font-size:11px;color:var(--ink-faint);min-width:18px;}
+  .num{
+    width:56px;padding:5px 8px;text-align:right;
+    border:1px solid var(--hair);border-radius:2px;
+    background:rgba(255,255,255,.72);
+    font-family:var(--serif);font-size:15px;color:var(--ink);
+    font-variant-numeric:tabular-nums;outline:none;
+    transition:border-color .3s;
+  }
+  .num:focus{border-color:var(--bronze);}
+  select.inp.sm{font-size:14.5px;}
+  .cfg-check{display:flex;align-items:center;gap:9px;margin-top:14px;cursor:pointer;font-size:12.5px;color:var(--ink-soft);user-select:none;}
+  .cfg-check input{
+    appearance:none;-webkit-appearance:none;width:14px;height:14px;flex:none;margin:0;
+    border:1px solid var(--hair);border-radius:1px;background:rgba(255,255,255,.7);
+    position:relative;cursor:pointer;transition:background .25s,border-color .25s;
+  }
+  .cfg-check input:checked{background:var(--bronze);border-color:var(--bronze);}
+  .cfg-check input:checked::after{
+    content:'';position:absolute;left:4px;top:1px;width:4px;height:8px;
+    border:solid #FFF9EE;border-width:0 1.5px 1.5px 0;transform:rotate(43deg);
+  }
   .breath{
     position:relative;width:170px;height:170px;margin:6px auto 18px;
     display:flex;align-items:center;justify-content:center;
@@ -584,7 +639,14 @@ const VIEWS = [
 ];
 
 /* ---------- 状态 ---------- */
-let db, view = 'today', selDay = iso(), pomo = null, bre = null;
+let db, view = 'today', selDay = iso(), pomo = null;
+
+/* 番茄钟默认配置（用户可在工具页改，存 db.pomoCfg） */
+const POMO_DEF = {
+  focus:25, brk:5, long:15, longEvery:4,
+  taskId:'', habitId:'', habitAdd:10,
+  autoCheck:true, autoNext:true
+};
 
 function seed(){
   const t = iso();
@@ -616,6 +678,8 @@ function seed(){
       { id:uid(), title:'睡前复盘与情绪记录', time:'21:30', days:[0,1,2,3,4,5,6], on:true }
     ],
     pomos: [],
+    pomoState: null,
+    pomoCfg: Object.assign({}, POMO_DEF),
     settings: { notify:false }
   };
 }
@@ -626,6 +690,11 @@ function load(){
   }catch(e){ db = seed(); }
   ['tasks','habits','moods','plans','reminders','pomos'].forEach(k => { if(!Array.isArray(db[k])) db[k] = []; });
   if(!db.settings) db.settings = { notify:false };
+  // 老数据没有 pomoCfg / 缺字段 -> 补全默认值
+  db.pomoCfg = Object.assign({}, POMO_DEF, db.pomoCfg || {});
+  // 关联的任务/追踪项可能已被删掉，清掉悬空引用
+  if(db.pomoCfg.taskId  && !db.tasks.some(t => t.id === db.pomoCfg.taskId))  db.pomoCfg.taskId  = '';
+  if(db.pomoCfg.habitId && !db.habits.some(h => h.id === db.pomoCfg.habitId)) db.pomoCfg.habitId = '';
 }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(db)); }catch(e){} }
 
@@ -1207,30 +1276,120 @@ function viewPlan(){
    视图 6：自助工具
    ========================================================= */
 function viewTool(){
-  const todayP = db.pomos.filter(p => p.date === iso()).length;
-  const totalP = db.pomos.length;
+  const c = db.pomoCfg;
+  const todayList = db.pomos.filter(p => p.date === iso());
+  const todayP   = todayList.filter(p => !p.partial).length;
+  const todayMin = todayList.reduce((a, p) => a + (p.min || 0), 0);
+  const totalP   = db.pomos.filter(p => !p.partial).length;
   const totalMin = db.pomos.reduce((a, p) => a + (p.min || 0), 0);
+
+  // —— 计时器主体 ——
+  const phase   = pomo ? pomo.phase : 'focus';
+  const total   = pomoDur(phase);
+  const left    = pomoLeft();
+  const running = pomo && !pomo.paused;
+  const pct     = Math.min(100, Math.max(0, (1 - left / total) * 100));
+  const round   = pomo ? pomo.round : 1;
+  const task    = c.taskId  ? db.tasks.find(t => t.id === c.taskId)   : null;
+  const habit   = c.habitId ? db.habits.find(h => h.id === c.habitId) : null;
+  const every   = Math.max(1, +c.longEvery || 4);
+
+  const pomoBox = `
+    <div class="pomo">
+      <div class="pomo-phase ${phase}" id="pomoPhase"><i class="${running ? 'blink' : ''}"></i>${PHASE_NM[phase]}</div>
+      <div class="pomo-time ${running ? (phase === 'focus' ? 'run' : 'rest') : ''}" id="pomoTime">${fmtMs(left)}</div>
+      <div class="pomo-lab" id="pomoLab">${
+        !pomo ? '准备开始'
+        : pomo.paused ? '已暂停 · 点继续'
+        : (phase === 'focus' ? `第 ${round} 个番茄 · 专注中` : '休息中 · 离开屏幕一下')
+      }</div>
+      <div class="pomo-track"><i id="pomoBar" style="width:${pct}%"></i></div>
+      ${(task || habit) ? `<div class="pomo-target">
+        ${task ? `<div style="flex:1;min-width:0">
+          <span class="lb">当下专注</span>
+          <span class="vl">${esc(task.title)}</span>
+        </div>` : ''}
+        ${habit ? `<div style="text-align:right;flex:none">
+          <span class="lb">完成记入</span>
+          <span class="vl">${habit.em} ${esc(habit.nm)} +${c.habitAdd} ${esc(habit.unit)}</span>
+        </div>` : ''}
+      </div>` : ''}
+      <div class="pomo-acts">
+        <button class="btn" id="pomoToggle">${!pomo ? `开始 ${c.focus} 分钟` : (pomo.paused ? '继续' : '暂停')}</button>
+        ${pomo ? `<button class="ghostb" id="pomoSkip">跳过本阶段</button>` : ''}
+        ${pomo ? `<button class="ghostb" id="pomoReset">重置</button>` : ''}
+      </div>
+    </div>`;
+
+  // —— 设置区 ——
+  // 下拉里只放「今天未完成」的任务；但已关联的那条即使被自动勾掉也要留着，
+  // 否则选中项会凭空消失、下拉回落到「不关联」，看起来像是设置丢了。
+  const undone = tasksOf(iso()).filter(t => !t.done);
+  const linked = c.taskId ? db.tasks.find(t => t.id === c.taskId) : null;
+  const pool = (linked && !undone.some(t => t.id === linked.id)) ? [linked].concat(undone) : undone;
+  const tOpts = pool.map(t =>
+    `<option value="${t.id}" ${c.taskId === t.id ? 'selected' : ''}>${esc(t.title)}${t.done ? '（已完成）' : ''}</option>`).join('');
+  const hOpts = db.habits.map(h =>
+    `<option value="${h.id}" ${c.habitId === h.id ? 'selected' : ''}>${h.em} ${esc(h.nm)}（${esc(h.unit)}）</option>`).join('');
+
+  const cfgBox = `
+    <div class="rule"><i></i></div>
+    <div class="card-h" style="margin-bottom:16px">
+      <h2 style="font-size:17px">计时设置</h2>
+      <span class="sub">改完即刻生效</span>
+    </div>
+    <div class="cfg-grid">
+      <label class="cfg-item"><span>专注时长</span>
+        <span class="wrapnum"><input class="num" type="number" min="1" max="180" value="${c.focus}" data-cfg="focus"><span class="unit">分</span></span></label>
+      <label class="cfg-item"><span>短休息</span>
+        <span class="wrapnum"><input class="num" type="number" min="1" max="60" value="${c.brk}" data-cfg="brk"><span class="unit">分</span></span></label>
+      <label class="cfg-item"><span>长休息</span>
+        <span class="wrapnum"><input class="num" type="number" min="1" max="120" value="${c.long}" data-cfg="long"><span class="unit">分</span></span></label>
+      <label class="cfg-item"><span>几轮后长休</span>
+        <span class="wrapnum"><input class="num" type="number" min="1" max="12" value="${c.longEvery}" data-cfg="longEvery"><span class="unit">个</span></span></label>
+    </div>
+
+    <div class="field" style="margin-top:22px">
+      <label>关联任务（可选）</label>
+      <div class="ctrl"><select class="inp sm" id="cfgTask">
+        <option value="">— 不关联 —</option>${tOpts}
+      </select><span class="bar"></span></div>
+    </div>
+    <label class="cfg-check"><input type="checkbox" id="cfgAutoCheck" ${c.autoCheck ? 'checked' : ''}><span>专注完成后自动勾掉这个任务</span></label>
+
+    <div class="field" style="margin-top:22px">
+      <label>完成后自动记入追踪项</label>
+      <div class="ctrl"><select class="inp sm" id="cfgHabit">
+        <option value="">— 不记录 —</option>${hOpts}
+      </select><span class="bar"></span></div>
+    </div>
+    <div class="cfg-grid" style="margin-top:2px">
+      <label class="cfg-item"><span>每完成一次计入</span>
+        <span class="wrapnum"><input class="num" type="number" min="1" max="999" value="${c.habitAdd}" data-cfg="habitAdd"><span class="unit" id="habitUnit">${habit ? esc(habit.unit) : '—'}</span></span></label>
+      <label class="cfg-item"><span>自动进入下一段</span>
+        <span class="wrapnum"><input type="checkbox" id="cfgAutoNext" ${c.autoNext ? 'checked' : ''} style="width:14px;height:14px;accent-color:var(--bronze)"></span></label>
+    </div>
+    <p style="margin:16px 0 0;font-size:12px;line-height:1.75;color:var(--ink-faint)">
+      当前节奏：专注 ${c.focus} 分 → 短休 ${c.brk} 分，每 ${every} 个番茄后长休 ${c.long} 分。
+      ${habit ? `每完成一次专注，自动给「${esc(habit.nm)}」加 ${c.habitAdd} ${esc(habit.unit)}。` : '还没关联追踪项，建议至少连一个——这样专注完不用手动补记。'}
+    </p>`;
 
   return `
   <div class="wrap grid g2">
     <div>
       <div class="card">
         <div class="card-h"><h2>专注计时器</h2><span class="sub">番茄式</span></div>
-        <div class="pomo">
-          <div class="pomo-time ${pomo && pomo.run ? 'run' : ''}" id="pomoTime">${fmtPomo()}</div>
-          <div class="pomo-lab" id="pomoLab">${pomo && pomo.run ? '专注中 · 别切窗口' : '准备开始'}</div>
-          <div class="pomo-acts">
-            <button class="btn" id="pomoToggle">${pomo && pomo.run ? '暂停' : '开始 25 分钟'}</button>
-            <button class="ghostb" id="pomoReset">重置</button>
-          </div>
-        </div>
+        ${pomoBox}
         <div class="rule"><i></i></div>
         <div class="stat-row">
           <div class="stat"><b>${todayP}</b><span>今日番茄</span></div>
+          <div class="stat"><b>${todayMin}</b><span>今日专注(分)</span></div>
           <div class="stat"><b>${totalP}</b><span>累计番茄</span></div>
           <div class="stat"><b>${Math.round(totalMin / 60 * 10) / 10}</b><span>累计小时</span></div>
         </div>
       </div>
+
+      <div class="card">${cfgBox}</div>
 
       <div class="card">
         <div class="card-h"><h2>呼吸锚定</h2><span class="sub">4-7-8</span></div>
@@ -1313,37 +1472,177 @@ function diagnose(){
     ${advice.map(a => `<div class="tip" style="margin-bottom:10px">${esc(a)}</div>`).join('')}`;
 }
 
-/* ---------- 番茄钟 ---------- */
-function fmtPomo(){
-  const left = pomo ? pomo.left : 25 * 60;
-  return `${pad(Math.floor(left / 60))}:${pad(left % 60)}`;
+/* ---------- 番茄钟 ----------
+   按「绝对结束时间戳」计时，而不是每 tick 减一。
+   原因：标签页切到后台时浏览器会把 setInterval 限流到约每分钟一次，
+   递减式计时会把 25 分钟实际拖成 40 分钟；用时间戳则完全不受影响。 */
+const PHASE_NM = { focus:'专注', brk:'短休', long:'长休' };
+
+function pomoDur(phase){
+  const c = db.pomoCfg;
+  const m = phase === 'focus' ? c.focus : phase === 'brk' ? c.brk : c.long;
+  return Math.max(1, +m || 1) * 60000;
+}
+function pomoLeft(){
+  if(!pomo) return pomoDur('focus');
+  if(pomo.paused) return Math.max(0, pomo.remaining);
+  return Math.max(0, pomo.endsAt - Date.now());
+}
+function fmtMs(ms){
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+}
+function notify(title, body){
+  if(!db.settings.notify) return;
+  if(!('Notification' in window) || Notification.permission !== 'granted') return;
+  try{ new Notification(title, { body }); }catch(e){}
+}
+function persistPomo(){
+  db.pomoState = pomo
+    ? { phase:pomo.phase, round:pomo.round, endsAt:pomo.endsAt, paused:!!pomo.paused, remaining:pomo.remaining }
+    : null;
+  save();
+}
+/* 把当前状态画进 DOM（不重建整页，避免输入框失焦） */
+function paintPomo(){
+  const el = $('#pomoTime'); if(!el) return;
+  const phase = pomo ? pomo.phase : 'focus';
+  const total = pomoDur(phase);
+  const left  = pomoLeft();
+  const run   = pomo && !pomo.paused;
+
+  el.textContent = fmtMs(left);
+  el.className = 'pomo-time' + (run ? (phase === 'focus' ? ' run' : ' rest') : '');
+
+  const bar = $('#pomoBar');
+  if(bar) bar.style.width = Math.min(100, Math.max(0, (1 - left / total) * 100)) + '%';
+
+  const chip = $('#pomoPhase');
+  if(chip){
+    chip.className = 'pomo-phase ' + phase;
+    chip.innerHTML = `<i class="${run ? 'blink' : ''}"></i>${PHASE_NM[phase]}`;
+  }
+  const lab = $('#pomoLab');
+  if(lab){
+    lab.textContent = !pomo ? '准备开始'
+      : pomo.paused ? '已暂停 · 点继续'
+      : (phase === 'focus' ? `第 ${pomo.round} 个番茄 · 专注中` : '休息中 · 离开屏幕一下');
+  }
+}
+function pomoBegin(phase, round, paused){
+  const dur = pomoDur(phase);
+  pomo = { phase, round: Math.max(1, round || 1), endsAt: Date.now() + dur, paused: !!paused, remaining: dur };
+  persistPomo(); paintPomo();
+}
+function pomoClear(){ pomo = null; persistPomo(); }
+function pomoToggle(){
+  if(!pomo){ pomoBegin('focus', 1, false); render(); return; }
+  if(pomo.paused){
+    pomo.endsAt = Date.now() + Math.max(0, pomo.remaining);
+    pomo.paused = false;
+  } else {
+    pomo.remaining = Math.max(0, pomo.endsAt - Date.now());
+    pomo.paused = true;
+  }
+  persistPomo(); render();
+}
+/* 结束当前阶段。skipped=true 表示手动跳过：按实际专注时长入账，不足 1 分钟不记。 */
+function pomoFinish(skipped){
+  if(!pomo) return;
+  const c = db.pomoCfg;
+  const phase = pomo.phase, round = pomo.round;
+  const msgs = [];
+
+  if(phase === 'focus'){
+    const elapsed = skipped ? Math.max(0, pomoDur('focus') - pomoLeft()) : pomoDur('focus');
+    const min = skipped ? Math.round(elapsed / 60000) : Math.max(1, +c.focus || 25);
+    if(min >= 1){
+      db.pomos.push({ id:uid(), date:iso(), min, partial:!!skipped, taskId:c.taskId || '' });
+      msgs.push(skipped ? `专注 ${min} 分钟已记录` : `专注 ${min} 分钟已记录`);
+    }
+    if(c.habitId && min >= 1){
+      const h = db.habits.find(x => x.id === c.habitId);
+      const amt = Math.max(0, +c.habitAdd || 0);
+      if(h && amt > 0){
+        const d = iso();
+        h.log[d] = (h.log[d] || 0) + amt;
+        msgs.push(`${h.em} ${h.nm} +${amt} ${h.unit}`);
+      }
+    }
+    if(c.taskId && c.autoCheck && !skipped){
+      const t = db.tasks.find(x => x.id === c.taskId);
+      if(t && !t.done){ t.done = true; msgs.push(`已勾掉「${t.title}」`); }
+    }
+  }
+
+  const every = Math.max(1, +c.longEvery || 4);
+  let nextPhase, nextRound = round;
+  if(phase === 'focus'){
+    nextPhase = (round % every === 0) ? 'long' : 'brk';
+    nextRound = round + 1;
+  } else {
+    nextPhase = 'focus';
+  }
+  save();
+
+  const head = skipped ? `已跳过${PHASE_NM[phase]}` : `${PHASE_NM[phase]}结束`;
+  const tail = nextPhase === 'focus' ? '开始下一个番茄'
+             : `${c.autoNext ? '休息' : '接下来休息'} ${Math.round(pomoDur(nextPhase) / 60000)} 分钟`;
+  const body = msgs.length ? `${msgs.join(' · ')} · ${tail}` : tail;
+  toast(head, body);
+  notify(`时间管理 · ${head}`, body);
+
+  // 总是先把下一阶段装进状态机；autoNext 关掉时以「暂停」姿态待命
+  pomoBegin(nextPhase, nextRound, !c.autoNext);
+  render();
 }
 function pomoTick(){
-  if(!pomo || !pomo.run) return;
-  pomo.left--;
-  const el = $('#pomoTime');
-  if(el) el.textContent = fmtPomo();
-  if(pomo.left <= 0){
-    pomo.run = false;
-    db.pomos.push({ id:uid(), date:iso(), min:25 });
-    save();
-    toast('一个番茄完成', '起来走两步，看看远处。');
-    if(db.settings.notify && 'Notification' in window && Notification.permission === 'granted'){
-      new Notification('Time Management', { body: '一个番茄钟完成了，休息 5 分钟。' });
-    }
-    pomo = null;
-    render();
-  }
+  if(!pomo || pomo.paused) return;
+  if(Date.now() >= pomo.endsAt){ pomoFinish(false); return; }
+  paintPomo();
 }
 function bindPomo(){
   const tog = $('#pomoToggle');
-  if(tog) tog.onclick = () => {
-    if(!pomo) pomo = { left:25 * 60, run:true };
-    else pomo.run = !pomo.run;
-    render();
-  };
+  if(tog) tog.onclick = pomoToggle;
+
+  const sk = $('#pomoSkip');
+  if(sk) sk.onclick = () => pomoFinish(true);
+
   const rs = $('#pomoReset');
-  if(rs) rs.onclick = () => { pomo = { left:25 * 60, run:false }; render(); };
+  if(rs) rs.onclick = () => { pomoClear(); render(); };
+
+  /* 计时设置：改完立刻生效并落盘 */
+  $$('[data-cfg]').forEach(inp => {
+    inp.onchange = () => {
+      const k = inp.dataset.cfg;
+      let v = parseInt(inp.value, 10);
+      const lo = +inp.min || 1, hi = +inp.max || 999;
+      if(isNaN(v)) v = POMO_DEF[k] || 1;
+      v = clamp(v, lo, hi);
+      inp.value = v;
+      db.pomoCfg[k] = v;
+      if(pomo) persistPomo();      // 时长改了不打断当前计时
+      save();
+      paintPomo();
+    };
+  });
+
+  const selT = $('#cfgTask');
+  if(selT) selT.onchange = () => { db.pomoCfg.taskId = selT.value; save(); render(); };
+
+  const selH = $('#cfgHabit');
+  if(selH) selH.onchange = () => {
+    db.pomoCfg.habitId = selH.value;
+    const h = db.habits.find(x => x.id === selH.value);
+    const u = $('#habitUnit');
+    if(u) u.textContent = h ? h.unit : '—';
+    save();
+  };
+
+  const ac = $('#cfgAutoCheck');
+  if(ac) ac.onchange = () => { db.pomoCfg.autoCheck = ac.checked; save(); };
+  const an = $('#cfgAutoNext');
+  if(an) an.onchange = () => { db.pomoCfg.autoNext = an.checked; save(); };
 
   const bg = $('#breathGo');
   if(bg) bg.onclick = breathStart;
@@ -1575,9 +1874,7 @@ function checkReminders(){
     if(r.time === hm && lastFired[key] !== hm){
       lastFired[key] = hm;
       toast('提醒 · ' + r.time, r.title);
-      if(db.settings.notify && 'Notification' in window && Notification.permission === 'granted'){
-        new Notification('Time Management · ' + r.time, { body: r.title });
-      }
+      notify('时间管理 · ' + r.time, r.title);
     }
   });
 }
@@ -1691,6 +1988,22 @@ $('#btnImport').onclick = () => {
 
 /* ---------- 启动 ---------- */
 load();
+
+/* 恢复上次未跑完的计时器（刷新页面 / 关掉重开都不丢） */
+(function restorePomo(){
+  const s = db.pomoState;
+  if(!s || !s.phase || !PHASE_NM[s.phase]){ db.pomoState = null; return; }
+  const alive = s.paused ? (s.remaining > 0) : (s.endsAt > Date.now());
+  if(!alive){ db.pomoState = null; save(); return; }
+  pomo = {
+    phase:s.phase,
+    round:Math.max(1, s.round || 1),
+    endsAt:s.endsAt || 0,
+    paused:!!s.paused,
+    remaining:Math.max(0, s.remaining || 0)
+  };
+})();
+
 (function initView(){
   const h = location.hash.slice(1);
   if(VIEWS.some(v => v.k === h)) view = h;
